@@ -26,8 +26,17 @@ def build_parser() -> argparse.ArgumentParser:
         "-r",
         "--requirements",
         type=Path,
-        default=Path("requirements.txt"),
+        default=None,
         help="Path to the requirements file.",
+    )
+    parser.add_argument(
+        "path",
+        nargs="?",
+        type=Path,
+        help=(
+            "Path to a requirements or pyproject-style TOML file. "
+            "Equivalent to providing --requirements."
+        ),
     )
     parser.add_argument(
         "--python",
@@ -82,7 +91,10 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
     _configure_logging(args.log_level)
 
-    requirements_path = args.requirements
+    if args.path and args.requirements:
+        parser.error("Provide either a positional path or --requirements, not both.")
+
+    requirements_path = args.path or args.requirements or Path("requirements.txt")
     if not requirements_path.exists():
         parser.error(f"Requirements file not found: {requirements_path}")
 

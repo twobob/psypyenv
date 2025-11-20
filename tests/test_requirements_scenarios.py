@@ -74,3 +74,21 @@ def test_parse_pyproject_dependencies() -> None:
 
     markers = [requirement.marker for requirement in requirements]
     assert markers == [None, 'python_version >= "3.10"', None]
+
+
+def test_parse_pyproject_optional_dependencies() -> None:
+    sample_path = PYPROJECT_DIR / "pep621_optional.toml"
+
+    requirements, indexes = parse_requirements(sample_path)
+
+    assert sorted(requirement.name for requirement in requirements) == [
+        "numpy",
+        "pytest",
+        "requests",
+        "starlette",
+        "uvicorn",
+    ]
+    assert indexes == []
+
+    uvicorn = next(req for req in requirements if req.name == "uvicorn")
+    assert any(spec.operator == "==" and spec.version == "0.24.0" for spec in uvicorn.specs)

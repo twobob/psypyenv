@@ -121,16 +121,33 @@ def _parse_pyproject(path: Path) -> Tuple[List[PackageRequirement], List[str]]:
         LOGGER.warning("Unable to parse pyproject.toml at %s", path)
         return [], []
 
-    dependencies = data.get("project", {}).get("dependencies", [])
-    if not isinstance(dependencies, list):
-        LOGGER.warning("'project.dependencies' is not a list in %s", path)
-        return [], []
+    project_table = data.get("project", {})
+
+    dependency_strings: List[str] = []
+    dependency_strings.extend(
+        _collect_dependency_strings(
+            project_table.get("dependencies"),
+            path,
+            "project.dependencies",
+        )
+    )
+
+    optional_dependencies = project_table.get("optional-dependencies", {})
+    if optional_dependencies:
+        if not isinstance(optional_dependencies, dict):
+            LOGGER.warning("'project.optional-dependencies' is not a table in %s", path)
+        else:
+            for group, entries in optional_dependencies.items():
+                dependency_strings.extend(
+                    _collect_dependency_strings(
+                        entries,
+                        path,
+                        f"project.optional-dependencies.{group}",
+                    )
+                )
 
     requirements: List[PackageRequirement] = []
-    for entry in dependencies:
-        if not isinstance(entry, str):
-            LOGGER.warning("Skipping non-string dependency in %s: %r", path, entry)
-            continue
+    for entry in dependency_strings:
         try:
             parsed = parse_requirement_line(entry)
         except InvalidRequirement as exc:
@@ -141,3 +158,20 @@ def _parse_pyproject(path: Path) -> Tuple[List[PackageRequirement], List[str]]:
         requirements.append(parsed[0])
 
     return requirements, []
+
+
+def _collect_dependency_strings(
+    value: object, path: Path, label: str
+) -> List[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        LOGGER.warning("'%s' is not a list in %s", label, path)
+        return []
+    dependencies: List[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            LOGGER.warning("Skipping non-string dependency in %s: %r", path, entry)
+            continue
+        dependencies.append(entry)
+    return dependencies
