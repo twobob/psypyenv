@@ -1,0 +1,16 @@
+[project]
+name = "sample-optional"
+version = "0.0.2"
+dependencies = [
+    "numpy>=1.25",
+    "requests==2.31.0",
+]
+
+[project.optional-dependencies]
+web = [
+    "starlette>=0.36",
+    "uvicorn[standard]==0.24.0",
+]
+tests = [
+    "pytest>=7",
+]
