@@ -146,6 +146,16 @@ def _parse_pyproject(path: Path) -> Tuple[List[PackageRequirement], List[str]]:
                     )
                 )
 
+    build_system = data.get("build-system", {})
+    if build_system:
+        dependency_strings.extend(
+            _collect_dependency_strings(
+                build_system.get("requires"),
+                path,
+                "build-system.requires",
+            )
+        )
+
     requirements: List[PackageRequirement] = []
     for entry in dependency_strings:
         try:
