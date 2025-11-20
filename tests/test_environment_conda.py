@@ -182,3 +182,21 @@ def test_cli_main_reports_discovered_environments(discovered_environments, capsy
         assert env_name in output
     assert output.count("Compatibility:") == len(discovered_environments)
     assert output.lower().count("missing: django") == len(discovered_environments)
+
+
+def test_cli_accepts_positional_requirement_path(discovered_environments, capsys) -> None:
+    sample_path = Path(__file__).parent / "data" / "pyproject_samples" / "pep621_basic.toml"
+
+    exit_code = cli.main([
+        str(sample_path),
+        "--include-conda-envs",
+        "--refresh-conda-envs",
+    ])
+
+    captured = capsys.readouterr()
+
+    assert exit_code == 0
+    output = captured.out
+    assert "Environment compatibility summary" in output
+    for env_name, _ in discovered_environments:
+        assert env_name in output

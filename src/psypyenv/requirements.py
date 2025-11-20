@@ -4,6 +4,11 @@ import logging
 from pathlib import Path
 from typing import Iterable, List, Optional, Sequence, Tuple
 
+try:  # Python 3.11+
+    import tomllib  # type: ignore[attr-defined]
+except ModuleNotFoundError:  # pragma: no cover - fallback for older Python versions
+    import tomli as tomllib  # type: ignore[no-redef]
+
 from packaging.requirements import InvalidRequirement, Requirement
 
 from .models import PackageRequirement, RequirementSpec
@@ -13,6 +18,9 @@ LOGGER = logging.getLogger(__name__)
 
 
 def parse_requirements(path: Path) -> Tuple[List[PackageRequirement], List[str]]:
+    if path.suffix.lower() == ".toml":
+        return _parse_pyproject(path)
+
     requirements: List[PackageRequirement] = []
     extra_indexes: List[str] = []
     for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
@@ -98,3 +106,82 @@ def _build_requirement(name: str, specs: Iterable[RequirementSpec], original: st
         url=url,
         original=original,
     )
+
+
+def _parse_pyproject(path: Path) -> Tuple[List[PackageRequirement], List[str]]:
+    try:
+        content = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        LOGGER.warning("Pyproject file not found: %s", path)
+        return [], []
+
+    try:
+        data = tomllib.loads(content)
+    except (tomllib.TOMLDecodeError, AttributeError):
+        LOGGER.warning("Unable to parse pyproject.toml at %s", path)
+        return [], []
+
+    project_table = data.get("project", {})
+
+    dependency_strings: List[str] = []
+    dependency_strings.extend(
+        _collect_dependency_strings(
+            project_table.get("dependencies"),
+            path,
+            "project.dependencies",
+        )
+    )
+
+    optional_dependencies = project_table.get("optional-dependencies", {})
+    if optional_dependencies:
+        if not isinstance(optional_dependencies, dict):
+            LOGGER.warning("'project.optional-dependencies' is not a table in %s", path)
+        else:
+            for group, entries in optional_dependencies.items():
+                dependency_strings.extend(
+                    _collect_dependency_strings(
+                        entries,
+                        path,
+                        f"project.optional-dependencies.{group}",
+                    )
+                )
+
+    build_system = data.get("build-system", {})
+    if build_system:
+        dependency_strings.extend(
+            _collect_dependency_strings(
+                build_system.get("requires"),
+                path,
+                "build-system.requires",
+            )
+        )
+
+    requirements: List[PackageRequirement] = []
+    for entry in dependency_strings:
+        try:
+            parsed = parse_requirement_line(entry)
+        except InvalidRequirement as exc:
+            LOGGER.warning("Invalid dependency in %s: %s", path, exc)
+            continue
+        if parsed is None or parsed[0] is None:
+            continue
+        requirements.append(parsed[0])
+
+    return requirements, []
+
+
+def _collect_dependency_strings(
+    value: object, path: Path, label: str
+) -> List[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        LOGGER.warning("'%s' is not a list in %s", label, path)
+        return []
+    dependencies: List[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            LOGGER.warning("Skipping non-string dependency in %s: %r", path, entry)
+            continue
+        dependencies.append(entry)
+    return dependencies

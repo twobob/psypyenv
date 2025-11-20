@@ -9,6 +9,7 @@ from psypyenv.requirements import parse_requirements
 
 
 DATA_DIR = Path(__file__).parent / "data" / "requirements_samples"
+PYPROJECT_DIR = Path(__file__).parent / "data" / "pyproject_samples"
 
 
 @pytest.mark.parametrize(
@@ -57,3 +58,49 @@ def test_sample_directory_contains_ten_files() -> None:
     sample_files = list(DATA_DIR.glob("*.txt"))
     assert len(sample_files) == 10
     assert all(file.is_file() for file in sample_files)
+
+
+def test_parse_pyproject_dependencies() -> None:
+    sample_path = PYPROJECT_DIR / "pep621_basic.toml"
+
+    requirements, indexes = parse_requirements(sample_path)
+
+    assert [requirement.name for requirement in requirements] == [
+        "numpy",
+        "pandas",
+        "requests",
+    ]
+    assert indexes == []
+
+    markers = [requirement.marker for requirement in requirements]
+    assert markers == [None, 'python_version >= "3.10"', None]
+
+
+def test_parse_pyproject_optional_dependencies() -> None:
+    sample_path = PYPROJECT_DIR / "pep621_optional.toml"
+
+    requirements, indexes = parse_requirements(sample_path)
+
+    assert sorted(requirement.name for requirement in requirements) == [
+        "numpy",
+        "pytest",
+        "requests",
+        "starlette",
+        "uvicorn",
+    ]
+    assert indexes == []
+
+    uvicorn = next(req for req in requirements if req.name == "uvicorn")
+    assert any(spec.operator == "==" and spec.version == "0.24.0" for spec in uvicorn.specs)
+
+
+def test_parse_pyproject_build_system_requires() -> None:
+    sample_path = PYPROJECT_DIR / "build_system_requires.toml"
+
+    requirements, indexes = parse_requirements(sample_path)
+
+    assert [requirement.name for requirement in requirements] == [
+        "setuptools",
+        "torch",
+    ]
+    assert indexes == []
