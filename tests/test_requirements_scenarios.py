@@ -92,3 +92,15 @@ def test_parse_pyproject_optional_dependencies() -> None:
 
     uvicorn = next(req for req in requirements if req.name == "uvicorn")
     assert any(spec.operator == "==" and spec.version == "0.24.0" for spec in uvicorn.specs)
+
+
+def test_parse_pyproject_build_system_requires() -> None:
+    sample_path = PYPROJECT_DIR / "build_system_requires.toml"
+
+    requirements, indexes = parse_requirements(sample_path)
+
+    assert [requirement.name for requirement in requirements] == [
+        "setuptools",
+        "torch",
+    ]
+    assert indexes == []
